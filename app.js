@@ -37,6 +37,17 @@ let timerState = {
 let activeQuizGame = null;
 let activeDeckStudy = null;
 
+// Active V2 States
+let ambientAudioNodes = {
+  ctx: null,
+  source: null,
+  gainNode: null,
+  lfoNode: null,
+  filterNode: null,
+  activeType: null // 'rain' | 'white' | 'binaural' | null
+};
+let activeChatQuestion = null; // For quiz question in chat
+
 // Quotes Pool for Dashboard
 const QUOTES = [
   { text: "The beautiful thing about learning is that no one can take it away from you.", author: "B.B. King" },
@@ -66,6 +77,10 @@ function initApp() {
   setupQuizMaker();
   setupFlashcards();
   setupModals();
+  setupThemeSelector();
+  setupFocusAudio();
+  setupWeeklyScheduler();
+  setupAICoach();
   
   // Show random quote
   displayRandomQuote();
@@ -88,6 +103,9 @@ function loadStateFromLocalStorage() {
       if (!state.stats) {
         state.stats = { studyTimeToday: 0, focusScore: 0, totalQuizzesTaken: 0, quizTotalCorrect: 0, quizTotalQuestions: 0 };
       }
+      if (!state.theme) state.theme = 'midnight';
+      applyTheme(state.theme);
+      if (!state.schedule) state.schedule = [];
     } catch (e) {
       console.error("Local storage corruption. Loading default data.");
       loadDefaultMockData();
@@ -236,6 +254,13 @@ function loadDefaultMockData() {
     }
   ];
 
+  state.theme = 'midnight';
+  state.schedule = [
+    { id: "mock-sched-1", title: "Calculus Limits Session", day: "Monday", time: "09:00", duration: "60" },
+    { id: "mock-sched-2", title: "Physics Mechanics Review", day: "Wednesday", time: "14:00", duration: "90" },
+    { id: "mock-sched-3", title: "Spanish Grammar Drill", day: "Friday", time: "10:30", duration: "60" }
+  ];
+
   saveStateToLocalStorage();
 }
 
@@ -303,7 +328,8 @@ function switchTab(tabId) {
     'tasks': 'Tasks & Planner Grid',
     'pomodoro': 'Pomodoro Focus Space',
     'quizzes': 'Quiz Builder & Studio',
-    'flashcards': 'Interactive Cards Deck'
+    'flashcards': 'Interactive Cards Deck',
+    'aicoach': 'AI Study Coach'
   };
   document.getElementById("current-view-title").textContent = titleMap[tabId] || 'Workspace';
 
@@ -318,6 +344,8 @@ function renderAllViews() {
   renderViewContent('pomodoro');
   renderViewContent('quizzes');
   renderViewContent('flashcards');
+  renderViewContent('aicoach');
+  renderCalendar();
 }
 
 function renderViewContent(tabId) {
@@ -327,6 +355,7 @@ function renderViewContent(tabId) {
       break;
     case 'tasks':
       renderTasks();
+      renderCalendar();
       break;
     case 'pomodoro':
       syncTimerUIDisplay();
@@ -336,6 +365,9 @@ function renderViewContent(tabId) {
       break;
     case 'flashcards':
       renderDecks();
+      break;
+    case 'aicoach':
+      renderAICoachInsights();
       break;
   }
 }
@@ -1948,3 +1980,511 @@ function escapeHTML(str) {
     }[tag] || tag)
   );
 }
+
+// ==========================================
+// V2 Upgrades Logic & Feature Engines
+// ==========================================
+
+// 1. Theme Selector Manager
+function setupThemeSelector() {
+  const selector = document.getElementById("theme-selector");
+  if (selector) {
+    selector.value = state.theme || "midnight";
+    selector.addEventListener("change", (e) => {
+      state.theme = e.target.value;
+      applyTheme(state.theme);
+      saveStateToLocalStorage();
+      showToast("Theme Updated", `Toggled layout theme to "${state.theme}".`, "info");
+    });
+  }
+}
+
+function applyTheme(theme) {
+  document.body.className = "";
+  if (theme !== "midnight") {
+    document.body.classList.add(`theme-${theme}`);
+  }
+}
+
+// 2. Focus Soundscape Synthesizer (Web Audio API)
+function setupFocusAudio() {
+  const volumeSlider = document.getElementById("input-audio-volume");
+  const volumeLabel = document.getElementById("volume-pct-label");
+  const stopBtn = document.getElementById("btn-stop-all-ambient");
+
+  if (volumeSlider) {
+    volumeSlider.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      if (volumeLabel) volumeLabel.textContent = `${Math.round(val * 100)}%`;
+      if (ambientAudioNodes.gainNode && ambientAudioNodes.ctx) {
+        ambientAudioNodes.gainNode.gain.setValueAtTime(val, ambientAudioNodes.ctx.currentTime);
+      }
+    });
+  }
+
+  const soundBtns = document.querySelectorAll(".focus-audio-card .sound-select-btn");
+  soundBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const soundType = btn.getAttribute("data-sound");
+      
+      if (ambientAudioNodes.activeType === soundType) {
+        stopFocusAudio();
+      } else {
+        startFocusAudio(soundType);
+      }
+    });
+  });
+
+  if (stopBtn) {
+    stopBtn.addEventListener("click", stopFocusAudio);
+  }
+}
+
+function startFocusAudio(type) {
+  try {
+    stopFocusAudio();
+
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ambientAudioNodes.ctx = ctx;
+
+    const masterGain = ctx.createGain();
+    const volVal = parseFloat(document.getElementById("input-audio-volume").value);
+    masterGain.gain.setValueAtTime(volVal, ctx.currentTime);
+    masterGain.connect(ctx.destination);
+    ambientAudioNodes.gainNode = masterGain;
+
+    ambientAudioNodes.activeType = type;
+    
+    // Update UI active buttons
+    document.querySelectorAll(".focus-audio-card .sound-select-btn").forEach(btn => {
+      if (btn.getAttribute("data-sound") === type) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+    
+    document.getElementById("btn-stop-all-ambient").style.display = "block";
+
+    if (type === 'white' || type === 'rain') {
+      // Noise buffer generator
+      const bufferSize = 2 * ctx.sampleRate;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      ambientAudioNodes.source = source;
+
+      if (type === 'rain') {
+        // Rain: pink lowpass filter + slow swell LFO modulation
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(450, ctx.currentTime);
+        ambientAudioNodes.filterNode = filter;
+
+        const modGain = ctx.createGain();
+        modGain.gain.setValueAtTime(0.7, ctx.currentTime);
+
+        const lfo = ctx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(0.12, ctx.currentTime); // slow wind swell
+
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.setValueAtTime(0.25, ctx.currentTime);
+
+        lfo.connect(lfoGain);
+        lfoGain.connect(modGain.gain);
+        ambientAudioNodes.lfoNode = lfo;
+
+        source.connect(filter);
+        filter.connect(modGain);
+        modGain.connect(masterGain);
+
+        lfo.start();
+      } else {
+        // Simple White/Brown Noise filtered
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, ctx.currentTime);
+        ambientAudioNodes.filterNode = filter;
+
+        source.connect(filter);
+        filter.connect(masterGain);
+      }
+      
+      source.start();
+      showToast("Soundscape Started", `Playing focus ${type === 'rain' ? 'Rainfall' : 'White Noise'}.`, "success");
+    } else if (type === 'binaural') {
+      // Binaural Beats (150Hz Left, 160Hz Right = 10Hz Alpha Beats)
+      const oscL = ctx.createOscillator();
+      const oscR = ctx.createOscillator();
+      
+      oscL.type = 'sine';
+      oscL.frequency.setValueAtTime(150, ctx.currentTime);
+      oscR.type = 'sine';
+      oscR.frequency.setValueAtTime(160, ctx.currentTime);
+
+      const pannerL = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      const pannerR = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+
+      if (pannerL && pannerR) {
+        pannerL.pan.setValueAtTime(-1, ctx.currentTime);
+        pannerR.pan.setValueAtTime(1, ctx.currentTime);
+        oscL.connect(pannerL).connect(masterGain);
+        oscR.connect(pannerR).connect(masterGain);
+      } else {
+        oscL.connect(masterGain);
+        oscR.connect(masterGain);
+      }
+
+      oscL.start();
+      oscR.start();
+
+      ambientAudioNodes.source = [oscL, oscR];
+      showToast("Soundscape Started", "Playing Focus Binaural Beats (10Hz Alpha). Headphones recommended!", "success");
+    }
+  } catch (e) {
+    console.error("Audio Synthesis failed", e);
+    showToast("Audio Error", "Could not start audio engine.", "danger");
+  }
+}
+
+function stopFocusAudio() {
+  if (!ambientAudioNodes.ctx) return;
+
+  try {
+    if (ambientAudioNodes.source) {
+      if (Array.isArray(ambientAudioNodes.source)) {
+        ambientAudioNodes.source.forEach(src => src.stop());
+      } else {
+        ambientAudioNodes.source.stop();
+      }
+    }
+    if (ambientAudioNodes.lfoNode) {
+      ambientAudioNodes.lfoNode.stop();
+    }
+    ambientAudioNodes.ctx.close();
+  } catch (e) {
+    console.error("Error stopping sound", e);
+  }
+
+  ambientAudioNodes.ctx = null;
+  ambientAudioNodes.source = null;
+  ambientAudioNodes.gainNode = null;
+  ambientAudioNodes.lfoNode = null;
+  ambientAudioNodes.filterNode = null;
+  ambientAudioNodes.activeType = null;
+
+  document.querySelectorAll(".focus-audio-card .sound-select-btn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  document.getElementById("btn-stop-all-ambient").style.display = "none";
+  showToast("Soundscape Stopped", "Ambient audio muted.", "info");
+}
+
+// 3. Weekly Scheduler Planner
+function setupWeeklyScheduler() {
+  document.getElementById("btn-add-schedule-block").addEventListener("click", () => {
+    openModal("modal-schedule-form");
+  });
+  document.getElementById("btn-close-schedule-modal").addEventListener("click", () => {
+    closeModal("modal-schedule-form");
+  });
+  document.getElementById("btn-cancel-schedule-form").addEventListener("click", () => {
+    closeModal("modal-schedule-form");
+  });
+
+  document.getElementById("schedule-creation-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = document.getElementById("sched-title").value.trim();
+    const day = document.getElementById("sched-day").value;
+    const time = document.getElementById("sched-time").value;
+    const duration = document.getElementById("sched-duration").value;
+
+    const newBlock = {
+      id: "sched-" + Date.now(),
+      title,
+      day,
+      time,
+      duration
+    };
+
+    state.schedule.push(newBlock);
+    saveStateToLocalStorage();
+    closeModal("modal-schedule-form");
+    renderCalendar();
+    
+    showToast("Schedule Block Added", `"${title}" scheduled on ${day} at ${time}.`, "success");
+    document.getElementById("schedule-creation-form").reset();
+  });
+}
+
+function renderCalendar() {
+  const grid = document.getElementById("calendar-days-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  
+  days.forEach(day => {
+    const col = document.createElement("div");
+    col.className = "calendar-day-col";
+    col.setAttribute("data-day", day);
+
+    const dayBlocks = state.schedule.filter(b => b.day === day);
+    dayBlocks.sort((a, b) => a.time.localeCompare(b.time));
+
+    if (dayBlocks.length === 0) {
+      col.innerHTML = `<div style="font-size:10px; color:var(--text-muted); text-align:center; margin-top:20px;">Free</div>`;
+    } else {
+      dayBlocks.forEach(block => {
+        const item = document.createElement("div");
+        item.className = "calendar-block";
+        item.innerHTML = `
+          <button class="btn-delete-sched" onclick="deleteScheduleBlock('${block.id}')" title="Delete Block">✕</button>
+          <div class="block-title" title="${escapeHTML(block.title)}">${escapeHTML(block.title)}</div>
+          <div class="block-time">${block.time} (${block.duration}m)</div>
+        `;
+        col.appendChild(item);
+      });
+    }
+
+    grid.appendChild(col);
+  });
+}
+
+function deleteScheduleBlock(blockId) {
+  const idx = state.schedule.findIndex(b => b.id === blockId);
+  if (idx !== -1) {
+    const title = state.schedule[idx].title;
+    state.schedule.splice(idx, 1);
+    saveStateToLocalStorage();
+    renderCalendar();
+    showToast("Block Removed", `"${title}" removed from schedule.`, "danger");
+  }
+}
+
+// 4. AI Study Coach Dialog Engine (Local chatbot)
+function setupAICoach() {
+  const chatForm = document.getElementById("chat-message-form");
+  const chatInput = document.getElementById("chat-user-input");
+
+  if (chatForm) {
+    chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      chatInput.value = "";
+      sendAICoachMessage(text);
+    });
+  }
+
+  const chips = document.querySelectorAll("#chat-suggestions-chips .chip-btn");
+  chips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      const q = chip.getAttribute("data-ask");
+      sendAICoachMessage(q);
+    });
+  });
+
+  const msgContainer = document.getElementById("chat-messages-container");
+  if (msgContainer && msgContainer.children.length === 0) {
+    addChatMessage("ai", "Hello Scholar! I am **Aetheria**, your AI Study Coach. I can help you organize tasks, schedule study blocks, or give study tips. How can I help you excel today?");
+  }
+}
+
+function renderAICoachInsights() {
+  const list = document.getElementById("ai-insights-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const pendingTasks = state.tasks.filter(t => t.status === 'pending');
+  const highPrio = pendingTasks.filter(t => t.priority === 'high');
+  let taskInsight = "";
+  if (pendingTasks.length === 0) {
+    taskInsight = "All clean! You have zero pending tasks. Take a quiz or review card decks to reinforce your knowledge.";
+  } else {
+    taskInsight = `You have <strong>${pendingTasks.length} pending tasks</strong>. ${highPrio.length > 0 ? `Focus on your <strong>${highPrio.length} High priority</strong> items first.` : "Your list is balanced. Keep chipping away!"}`;
+  }
+
+  let studyInsight = "";
+  if (state.stats.studyTimeToday === 0) {
+    studyInsight = "No study sessions recorded today yet. Let's start with a 25-minute Pomodoro block to build momentum!";
+  } else {
+    studyInsight = `Great job! You have logged <strong>${state.stats.studyTimeToday} minutes</strong> of deep focus today. Keep it up!`;
+  }
+
+  let quizInsight = "";
+  if (state.stats.quizTotalQuestions === 0) {
+    quizInsight = "No quiz attempts recorded. Try taking the preloaded science quiz to gauge your retention strengths.";
+  } else {
+    const acc = Math.round((state.stats.quizTotalCorrect / state.stats.quizTotalQuestions) * 100);
+    quizInsight = `Your overall quiz correctness is <strong>${acc}%</strong>. Challenge yourself with a new subject to boost this score!`;
+  }
+
+  const cardsData = [
+    { title: "Task Load Analysis", content: taskInsight },
+    { title: "Daily Deep Work Log", content: studyInsight },
+    { title: "Knowledge Retention", content: quizInsight }
+  ];
+
+  cardsData.forEach(card => {
+    const div = document.createElement("div");
+    div.className = "ai-insight-card";
+    div.innerHTML = `
+      <div class="insight-header">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>${card.title}</span>
+      </div>
+      <div>${card.content}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function sendAICoachMessage(userMsg) {
+  addChatMessage("user", userMsg);
+  showAITypingIndicator();
+
+  setTimeout(() => {
+    hideAITypingIndicator();
+    let reply = "";
+    const cleanMsg = userMsg.toLowerCase();
+
+    // Check if answering active chat trivia question
+    if (activeChatQuestion && activeChatQuestion.q) {
+      const correctAns = activeChatQuestion.correctLetter;
+      const userChoice = cleanMsg.trim().toUpperCase();
+
+      if (userChoice === correctAns || userChoice.includes(activeChatQuestion.correctText.toLowerCase())) {
+        reply = `**Correct!** 🎉 You nailed it. The answer is indeed **${activeChatQuestion.correctText}**. Earned +10 Focus Points!`;
+        state.stats.focusScore += 10;
+        saveStateToLocalStorage();
+        updateHeaderFocusScore();
+      } else {
+        reply = `**Incorrect!** ✕ The correct answer was **${correctAns}) ${activeChatQuestion.correctText}**. Don't worry, keep practicing!`;
+      }
+      activeChatQuestion = null;
+    }
+    // Auto-schedule confirmation
+    else if (activeChatQuestion && activeChatQuestion.type === "auto-schedule" && (cleanMsg === "yes" || cleanMsg.includes("confirm") || cleanMsg.includes("sure"))) {
+      const block = {
+        id: "sched-" + Date.now(),
+        title: activeChatQuestion.title,
+        day: activeChatQuestion.day,
+        time: activeChatQuestion.time,
+        duration: activeChatQuestion.duration
+      };
+      state.schedule.push(block);
+      saveStateToLocalStorage();
+      renderCalendar();
+      reply = `**Scheduled!** I have added **"${block.title}"** to your Weekly Planner on **${block.day} at ${block.time}**. Check it out in the Tasks view!`;
+      activeChatQuestion = null;
+    }
+    // Schedule optimization request
+    else if (cleanMsg.includes("optimize") || cleanMsg.includes("schedule") || cleanMsg.includes("calendar")) {
+      const pendingHigh = state.tasks.filter(t => t.status === 'pending' && t.priority === 'high');
+      if (pendingHigh.length > 0) {
+        reply = `Based on your high priority task load, I suggest scheduling a 60-minute **${pendingHigh[0].title}** session tomorrow at 09:00 AM. Would you like me to allocate a block in your Weekly Planner? Type **"yes"** to automatically schedule it!`;
+        activeChatQuestion = {
+          type: "auto-schedule",
+          title: `${pendingHigh[0].subject || 'Study'}: ${pendingHigh[0].title}`,
+          day: "Wednesday",
+          time: "09:00",
+          duration: "60"
+        };
+      } else {
+        reply = "You don't have any pending High priority tasks right now. I recommend setting aside a 30-minute block for general revision tomorrow at 10:00 AM. Type **\"yes\"** to schedule this block.";
+        activeChatQuestion = {
+          type: "auto-schedule",
+          title: "General Revision Session",
+          day: "Wednesday",
+          time: "10:00",
+          duration: "30"
+        };
+      }
+    }
+    // Trivia question request
+    else if (cleanMsg.includes("quiz") || cleanMsg.includes("test") || cleanMsg.includes("question")) {
+      const questions = [
+        { q: "What is the capital city of Australia?", a: "CANBERRA", choices: ["A) Sydney", "B) Melbourne", "C) Canberra", "D) Brisbane"], correctLetter: "C", correctText: "Canberra" },
+        { q: "Which element has the atomic number 1?", a: "HYDROGEN", choices: ["A) Helium", "B) Hydrogen", "C) Oxygen", "D) Lithium"], correctLetter: "B", correctText: "Hydrogen" },
+        { q: "How many bones are in the adult human body?", a: "206", choices: ["A) 206", "B) 305", "C) 150", "D) 208"], correctLetter: "A", correctText: "206" }
+      ];
+      const r = Math.floor(Math.random() * questions.length);
+      const trivia = questions[r];
+
+      reply = `Here is a quick concept test for you:\n\n**${trivia.q}**\n\n${trivia.choices.join("\n")}\n\n*Type A, B, C, or D to submit your answer!*`;
+      activeChatQuestion = trivia;
+    }
+    // Study tips request
+    else if (cleanMsg.includes("tip") || cleanMsg.includes("exam") || cleanMsg.includes("strategy")) {
+      reply = `Here are 3 research-backed study strategies to master your material:
+1. **Active Recall**: Don't just reread notes. Close the book and write down everything you remember. Try our **Flashcards** view to practice!
+2. **Spaced Repetition**: Review concepts at expanding intervals (1 day, 3 days, 1 week) to cement them into long-term memory.
+3. **Feynman Technique**: Try explaining a complex concept in simple terms, as if teaching a child. This will highlight gaps in your understanding.`;
+    }
+    // Default greeting
+    else {
+      const completed = state.tasks.filter(t => t.status === 'completed').length;
+      reply = `Hello! I see you have earned **${state.stats.focusScore} focus points** and completed **${completed} tasks** so far.
+      
+If you want to maximize productivity, try asking me to **"optimize my schedule"**, **"quiz me"**, or type **"give me study tips"**!`;
+    }
+
+    addChatMessage("ai", reply);
+  }, 1200);
+}
+
+function addChatMessage(sender, text, isHtml = false) {
+  const container = document.getElementById("chat-messages-container");
+  if (!container) return;
+
+  const bubble = document.createElement("div");
+  bubble.className = `message ${sender === 'user' ? 'user-message' : 'ai-message'}`;
+
+  let formatted = escapeHTML(text);
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  formatted = formatted.replace(/\n/g, '<br>');
+
+  bubble.innerHTML = formatted;
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showAITypingIndicator() {
+  const container = document.getElementById("chat-messages-container");
+  if (!container) return;
+
+  const indicator = document.createElement("div");
+  indicator.className = "message ai-message typing-indicator";
+  indicator.id = "ai-typing-indicator";
+  indicator.innerHTML = "<span></span><span></span><span></span>";
+
+  container.appendChild(indicator);
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideAITypingIndicator() {
+  const el = document.getElementById("ai-typing-indicator");
+  if (el) el.remove();
+}
+
+// Expose V2 functions to global window object
+window.quickCompleteTask = quickCompleteTask;
+window.openTaskModal = openTaskModal;
+window.toggleTaskStatus = toggleTaskStatus;
+window.deleteTask = deleteTask;
+window.deleteQuiz = deleteQuiz;
+window.startQuizPlay = startQuizPlay;
+window.deleteDeck = deleteDeck;
+window.startDeckReview = startDeckReview;
+window.deleteScheduleBlock = deleteScheduleBlock;
+
