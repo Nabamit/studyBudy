@@ -74,6 +74,9 @@ Then, open your web browser and navigate to: **[http://localhost:8000](http://lo
 
 ### Using the Features
 
+#### 🎨 Theme Customizer
+- Located in the top header. Toggle between **Midnight Glass**, **Sakura Petal**, **Emerald Oasis**, and **Cyberpunk Neon** themes to instantly restyle the entire visual layout.
+
 #### 📅 Dashboard Overview
 - View your **Focus Score**, total daily study time, completed tasks, and average quiz scores.
 - Double-click the **Focus Shortcut** button to start a Pomodoro immediately.
@@ -85,10 +88,22 @@ Then, open your web browser and navigate to: **[http://localhost:8000](http://lo
 3. Use the filters on the left side to show tasks based on completion status, priority tier, or tags.
 4. Tick the checkbox on any task card to cross it out and earn **+15 Focus Points**.
 
+#### 📅 Weekly Study Planner
+- Located at the bottom of the Tasks page.
+- Click **Schedule Block** to set aside structured time slots (e.g. Wednesday 02:00 PM for Mathematics Calculus Prep).
+- Blocks display as gradient cards that support deletion via a hover `✕` button.
+
 #### ⏱️ Pomodoro Space
 - Customize focus and break times in the **Focus Settings** panel and click **Update Settings**.
 - Click **Play** to start focusing. A circular gradient path will shrink as time ticks down.
-- Toggle between Work, Short Break, or Long Break modes manually if needed.
+- **Ambient Soundscapes**: Select **Rain**, **White Noise**, or **Focus Frequency** (Binaural beats panned left/right) to synthesize soundscapes using the Web Audio API. Adjust volume or mute instantly.
+
+#### 🤖 AI Study Coach (Aetheria)
+- Navigate to the **AI Study Coach** tab.
+- Chat with **Aetheria**, your virtual coach.
+- Ask to *"optimize my schedule"* to auto-book study blocks for high priority tasks.
+- Ask to *"quiz me"* to test your memory with rapid-fire questions inside the chat.
+- View real-time analyses on your task burdens and focus scores in the **Coach Insights** panel on the right.
 
 #### 🧠 Quiz Builder
 - Click **New Quiz**, type a title and subject, then build your questions.
