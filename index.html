@@ -13,6 +13,44 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Login/Auth Wall Overlay -->
+  <div class="auth-wall-container" id="auth-wall-container" style="display: flex;">
+    <div class="auth-card glass-card">
+      <div class="auth-logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <span class="logo-text" style="font-size:24px;">AetherStudy</span>
+      </div>
+      <h2 class="auth-title">Sign In</h2>
+      <p class="auth-subtitle">Welcome to AetherStudy Suite (studyBuddy)</p>
+      
+      <div class="demo-account-box">
+        <div class="demo-header">🗝️ Demo Access Credentials</div>
+        <div class="demo-body">
+          <div>Email: <strong>scholar@aetherstudy.com</strong></div>
+          <div>Password: <strong>password</strong></div>
+        </div>
+        <button class="btn btn-secondary btn-full" id="btn-demo-autofill" style="margin-top: 10px; font-size:12px; padding: 6px 12px;">Use Demo Account</button>
+      </div>
+
+      <form id="auth-login-form" class="modal-form">
+        <div class="form-group">
+          <label for="login-email">Email Address</label>
+          <input type="email" id="login-email" required placeholder="scholar@aetherstudy.com">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" required placeholder="••••••••">
+        </div>
+        <div class="auth-error-msg" id="auth-error-msg" style="display:none; color:var(--danger); font-size:12px; font-weight:600; text-align:center;"></div>
+        <button type="submit" class="btn btn-primary btn-full" style="padding: 12px 20px; font-size:14px; margin-top:10px;">Sign In</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Background Decorative Orbs -->
   <div class="background-orbs">
     <div class="orb orb-1"></div>
@@ -88,11 +126,16 @@
 
       <div class="sidebar-footer">
         <div class="user-profile">
-          <div class="user-avatar">S</div>
-          <div class="user-info">
-            <div class="user-name">Scholar Mode</div>
+          <div class="user-avatar" id="sidebar-user-avatar">S</div>
+          <div class="user-info" style="flex-grow: 1;">
+            <div class="user-name" id="sidebar-user-name">Scholar Mode</div>
             <div class="user-status">Deep Work Active</div>
           </div>
+          <button class="btn-logout" id="btn-logout" title="Log Out">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+            </svg>
+          </button>
         </div>
       </div>
     </aside>
@@ -385,43 +428,45 @@
               </div>
             </div>
 
-            <!-- Settings / Customizations panel for Pomodoro -->
-            <div class="timer-settings-card glass-card">
-              <h3 class="card-title">Focus Settings</h3>
-              <div class="settings-form">
-                <div class="form-group">
-                  <label for="input-focus-duration">Focus Duration (minutes)</label>
-                  <input type="number" id="input-focus-duration" min="1" max="180" value="25">
-                </div>
-                <div class="form-group">
-                  <label for="input-short-duration">Short Break Duration (minutes)</label>
-                  <input type="number" id="input-short-duration" min="1" max="60" value="5">
-                </div>
-                <div class="form-group">
-                  <label for="input-long-duration">Long Break Duration (minutes)</label>
-                  <input type="number" id="input-long-duration" min="1" max="120" value="15">
-                </div>
-                <button class="btn btn-secondary btn-full" id="btn-save-timer-settings">Update Settings</button>
-              </div>
-            </div>
-
-            <!-- Focus Audio Panel -->
-            <div class="timer-settings-card glass-card focus-audio-card" style="margin-top: 24px;">
-              <h3 class="card-title">Ambient Soundscapes</h3>
-              <div class="settings-form">
-                <div class="audio-toggle-row">
-                  <button class="btn btn-secondary sound-select-btn" data-sound="rain">🌧️ Rain</button>
-                  <button class="btn btn-secondary sound-select-btn" data-sound="white">💨 White Noise</button>
-                  <button class="btn btn-secondary sound-select-btn" data-sound="binaural">🧘 Focus Frequency</button>
-                </div>
-                <div class="form-group" style="margin-top: 8px;">
-                  <label for="input-audio-volume">Soundscape Volume</label>
-                  <div class="volume-slider-wrapper" style="display:flex; align-items:center; gap:12px;">
-                    <input type="range" id="input-audio-volume" min="0" max="1" step="0.05" value="0.3" style="flex-grow:1; background:rgba(0,0,0,0.3); border:none; padding:0;">
-                    <span id="volume-pct-label" style="font-size:12px; font-weight:600; min-width:30px;">30%</span>
+            <div class="pomodoro-sidebar">
+              <!-- Settings / Customizations panel for Pomodoro -->
+              <div class="timer-settings-card glass-card">
+                <h3 class="card-title">Focus Settings</h3>
+                <div class="settings-form">
+                  <div class="form-group">
+                    <label for="input-focus-duration">Focus Duration (minutes)</label>
+                    <input type="number" id="input-focus-duration" min="1" max="180" value="25">
                   </div>
+                  <div class="form-group">
+                    <label for="input-short-duration">Short Break Duration (minutes)</label>
+                    <input type="number" id="input-short-duration" min="1" max="60" value="5">
+                  </div>
+                  <div class="form-group">
+                    <label for="input-long-duration">Long Break Duration (minutes)</label>
+                    <input type="number" id="input-long-duration" min="1" max="120" value="15">
+                  </div>
+                  <button class="btn btn-secondary btn-full" id="btn-save-timer-settings">Update Settings</button>
                 </div>
-                <button class="btn btn-danger btn-full" id="btn-stop-all-ambient" style="display: none;">Stop Ambient Sound</button>
+              </div>
+
+              <!-- Focus Audio Panel -->
+              <div class="timer-settings-card glass-card focus-audio-card" style="margin-top: 24px;">
+                <h3 class="card-title">Ambient Soundscapes</h3>
+                <div class="settings-form">
+                  <div class="audio-toggle-row">
+                    <button class="btn btn-secondary sound-select-btn" data-sound="rain">🌧️ Rain</button>
+                    <button class="btn btn-secondary sound-select-btn" data-sound="white">💨 White Noise</button>
+                    <button class="btn btn-secondary sound-select-btn" data-sound="binaural">🧘 Focus Frequency</button>
+                  </div>
+                  <div class="form-group" style="margin-top: 8px;">
+                    <label for="input-audio-volume">Soundscape Volume</label>
+                    <div class="volume-slider-wrapper" style="display:flex; align-items:center; gap:12px;">
+                      <input type="range" id="input-audio-volume" min="0" max="1" step="0.05" value="0.3" style="flex-grow:1; background:rgba(0,0,0,0.3); border:none; padding:0;">
+                      <span id="volume-pct-label" style="font-size:12px; font-weight:600; min-width:30px;">30%</span>
+                    </div>
+                  </div>
+                  <button class="btn btn-danger btn-full" id="btn-stop-all-ambient" style="display: none;">Stop Ambient Sound</button>
+                </div>
               </div>
             </div>
           </div>

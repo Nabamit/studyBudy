@@ -4,6 +4,7 @@
 
 // Global Application State Object
 let state = {
+  currentUser: null,
   tasks: [],
   quizzes: [],
   decks: [],
@@ -19,7 +20,9 @@ let state = {
     quizTotalCorrect: 0,
     quizTotalQuestions: 0
   },
-  reminders: []
+  reminders: [],
+  theme: 'midnight',
+  schedule: []
 };
 
 // Pomodoro Timer State
@@ -69,6 +72,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initApp() {
   loadStateFromLocalStorage();
+  setupAuth();
+  checkLoginState();
   setupNavigation();
   setupDashboard();
   setupTasksManager();
@@ -106,6 +111,7 @@ function loadStateFromLocalStorage() {
       if (!state.theme) state.theme = 'midnight';
       applyTheme(state.theme);
       if (!state.schedule) state.schedule = [];
+      if (state.currentUser === undefined) state.currentUser = null;
     } catch (e) {
       console.error("Local storage corruption. Loading default data.");
       loadDefaultMockData();
@@ -121,6 +127,7 @@ function saveStateToLocalStorage() {
 }
 
 function loadDefaultMockData() {
+  state.currentUser = null;
   state.tasks = [
     {
       id: "mock-task-1",
@@ -144,13 +151,43 @@ function loadDefaultMockData() {
     },
     {
       id: "mock-task-3",
+      title: "Chemistry balancing equations",
+      desc: "Solve worksheet exercises for redox reactions.",
+      subject: "Chemistry",
+      priority: "high",
+      dueDate: getTodayDateString(2),
+      dueTime: "15:00",
+      status: "pending"
+    },
+    {
+      id: "mock-task-4",
+      title: "Design binary tree traversal algorithm",
+      desc: "Implement pre-order, in-order and post-order traversal in JS.",
+      subject: "Computer Science",
+      priority: "medium",
+      dueDate: getTodayDateString(3),
+      dueTime: "",
+      status: "pending"
+    },
+    {
+      id: "mock-task-5",
       title: "Read Chapter 4 of History book",
       desc: "Analyze economic effects of the Industrial Revolution.",
       subject: "History",
       priority: "low",
-      dueDate: getTodayDateString(1), // Tomorrow
+      dueDate: getTodayDateString(1),
       dueTime: "10:00",
       status: "completed"
+    },
+    {
+      id: "mock-task-6",
+      title: "Write Literature essay draft",
+      desc: "Prepare outline about tragic themes in Macbeth.",
+      subject: "English Literature",
+      priority: "low",
+      dueDate: getTodayDateString(4),
+      dueTime: "23:59",
+      status: "pending"
     }
   ];
 
@@ -212,6 +249,82 @@ function loadDefaultMockData() {
           correctIdx: 2
         }
       ]
+    },
+    {
+      id: "mock-quiz-2",
+      title: "World Geography Trivia",
+      subject: "Geography",
+      highScore: null,
+      questions: [
+        {
+          question: "What is the capital city of France?",
+          options: ["Lyon", "Marseille", "Paris", "Nice"],
+          correctIdx: 2
+        },
+        {
+          question: "Which river is the longest in the world?",
+          options: ["Amazon", "Nile", "Yangtze", "Mississippi"],
+          correctIdx: 1
+        },
+        {
+          question: "Which country is also known as the Land of the Rising Sun?",
+          options: ["China", "South Korea", "Thailand", "Japan"],
+          correctIdx: 3
+        },
+        {
+          question: "What is the smallest country in the world by area?",
+          options: ["Monaco", "Vatican City", "San Marino", "Liechtenstein"],
+          correctIdx: 1
+        },
+        {
+          question: "Which ocean is the largest on Earth?",
+          options: ["Atlantic Ocean", "Indian Ocean", "Southern Ocean", "Pacific Ocean"],
+          correctIdx: 3
+        }
+      ]
+    },
+    {
+      id: "mock-quiz-3",
+      title: "Web Development Basics",
+      subject: "Computer Science",
+      highScore: null,
+      questions: [
+        {
+          question: "What does HTML stand for?",
+          options: [
+            "HyperText Markup Language",
+            "HighText Machine Language",
+            "HyperTabular Markup Linker",
+            "None of the above"
+          ],
+          correctIdx: 0
+        },
+        {
+          question: "Which HTML element is used for the largest heading?",
+          options: ["<heading>", "<h1>", "<h6>", "<head>"],
+          correctIdx: 1
+        },
+        {
+          question: "What does CSS stand for?",
+          options: [
+            "Creative Style Sheets",
+            "Cascading Style Sheets",
+            "Computer Style System",
+            "Custom Styling Sheets"
+          ],
+          correctIdx: 1
+        },
+        {
+          question: "Which CSS property is used to change text color?",
+          options: ["font-color", "text-color", "color", "background-color"],
+          correctIdx: 2
+        },
+        {
+          question: "Which symbol is used for comments in JavaScript?",
+          options: ["//", "/* */", "#", "<!-- -->"],
+          correctIdx: 0
+        }
+      ]
     }
   ];
 
@@ -227,6 +340,20 @@ function loadDefaultMockData() {
         { front: "Good morning", back: "Buenos días" },
         { front: "Where is the library?", back: "¿Dónde está la biblioteca?" },
         { front: "Please / You're welcome", back: "Por favor / De nada" }
+      ]
+    },
+    {
+      id: "mock-deck-2",
+      title: "HTML & CSS Core Tags",
+      subject: "Computer Science",
+      timesReviewed: 0,
+      lastScore: null,
+      cards: [
+        { front: "<a>", back: "Anchor tag (used to create hyperlinks)" },
+        { front: "<img>", back: "Image tag (embeds images on a page)" },
+        { front: "<div>", back: "Division container (block-level section tag)" },
+        { front: "<p>", back: "Paragraph tag (wraps text blocks)" },
+        { front: "<ul>", back: "Unordered list (wraps bullet points list)" }
       ]
     }
   ];
@@ -258,7 +385,8 @@ function loadDefaultMockData() {
   state.schedule = [
     { id: "mock-sched-1", title: "Calculus Limits Session", day: "Monday", time: "09:00", duration: "60" },
     { id: "mock-sched-2", title: "Physics Mechanics Review", day: "Wednesday", time: "14:00", duration: "90" },
-    { id: "mock-sched-3", title: "Spanish Grammar Drill", day: "Friday", time: "10:30", duration: "60" }
+    { id: "mock-sched-3", title: "Chemistry Acid-Base Lab", day: "Thursday", time: "16:30", duration: "120" },
+    { id: "mock-sched-4", title: "Spanish Grammar Drill", day: "Friday", time: "10:30", duration: "60" }
   ];
 
   saveStateToLocalStorage();
@@ -2487,4 +2615,77 @@ window.startQuizPlay = startQuizPlay;
 window.deleteDeck = deleteDeck;
 window.startDeckReview = startDeckReview;
 window.deleteScheduleBlock = deleteScheduleBlock;
+
+// 5. V3 Authentication Wall
+function setupAuth() {
+  const loginForm = document.getElementById("auth-login-form");
+  const emailInput = document.getElementById("login-email");
+  const passInput = document.getElementById("login-password");
+  const errorMsg = document.getElementById("auth-error-msg");
+  const demoBtn = document.getElementById("btn-demo-autofill");
+  const logoutBtn = document.getElementById("btn-logout");
+
+  if (loginForm) {
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+      const password = passInput.value;
+
+      if (email === "scholar@aetherstudy.com" && password === "password") {
+        state.currentUser = "Scholar";
+        saveStateToLocalStorage();
+        checkLoginState();
+        showToast("Access Granted", "Welcome back, Scholar!", "success");
+        displayRandomQuote();
+        renderAllViews();
+      } else {
+        errorMsg.textContent = "Invalid email or password. Please use the demo credentials.";
+        errorMsg.style.display = "block";
+        playQuizTickChime(false);
+      }
+    });
+  }
+
+  if (demoBtn) {
+    demoBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      emailInput.value = "scholar@aetherstudy.com";
+      passInput.value = "password";
+      errorMsg.style.display = "none";
+      loginForm.dispatchEvent(new Event("submit"));
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to log out?")) {
+        stopFocusAudio();
+        pauseTimer();
+        state.currentUser = null;
+        saveStateToLocalStorage();
+        checkLoginState();
+        showToast("Logged Out", "Session ended successfully.", "info");
+      }
+    });
+  }
+}
+
+function checkLoginState() {
+  const wall = document.getElementById("auth-wall-container");
+  const profileName = document.getElementById("sidebar-user-name");
+  const profileAvatar = document.getElementById("sidebar-user-avatar");
+
+  if (state.currentUser) {
+    if (wall) wall.style.display = "none";
+    if (profileName) profileName.textContent = "Scholar Mode";
+    if (profileAvatar) profileAvatar.textContent = "S";
+  } else {
+    if (wall) {
+      wall.style.display = "flex";
+      document.getElementById("login-email").value = "";
+      document.getElementById("login-password").value = "";
+      document.getElementById("auth-error-msg").style.display = "none";
+    }
+  }
+}
 
