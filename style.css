@@ -850,7 +850,7 @@ body {
   flex-grow: 1;
 }
 
-.search-tasks-wrapper input, .modal-form input, .modal-form select, .modal-form textarea, .reminder-inline-form input {
+.search-tasks-wrapper input, .modal-form input, .modal-form select, .modal-form textarea, .reminder-inline-form input, .settings-form input[type="number"] {
   width: 100%;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--glass-border);
@@ -862,7 +862,7 @@ body {
   transition: var(--transition-smooth);
 }
 
-.search-tasks-wrapper input:focus, .modal-form input:focus, .modal-form select:focus, .modal-form textarea:focus, .reminder-inline-form input:focus {
+.search-tasks-wrapper input:focus, .modal-form input:focus, .modal-form select:focus, .modal-form textarea:focus, .reminder-inline-form input:focus, .settings-form input[type="number"]:focus {
   outline: none;
   border-color: var(--accent-primary);
   background: rgba(0, 0, 0, 0.3);
